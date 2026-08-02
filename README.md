@@ -45,8 +45,11 @@ Subcommands:
   pr-checks N --repo OWNER/REPO [--json]
       Check runs + workflow runs for the PR head SHA.
 
-  pr-edit N --repo OWNER/REPO --body-file PATH
+  pr-edit N --repo OWNER/REPO --body-file PATH [--json]
       Update PR N's body from PATH.
+
+  pr-comment-add N --repo OWNER/REPO --body-file PATH [--json]
+      Post a new issue-level comment on PR N.
 
   api METHOD PATH [-d BODY]
       Raw passthrough to the GitHub REST API.
