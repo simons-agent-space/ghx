@@ -58,6 +58,8 @@ func run(ctx context.Context) error {
 		return subcmd.PRChecks(ctx, c, args)
 	case "pr-edit":
 		return subcmd.PREdit(ctx, c, args)
+	case "pr-create":
+		return subcmd.PRCreate(ctx, c, args)
 	case "pr-comment-add":
 		return subcmd.PRCommentAdd(ctx, c, args)
 	case "api":
@@ -85,6 +87,8 @@ Subcommands:
       Check runs + workflow runs for the PR head SHA.
   pr-edit N --repo OWNER/REPO --body-file PATH
       Update PR N's body from PATH.
+  pr-create --repo OWNER/REPO --head BRANCH --title TITLE [--base BRANCH] [--body-file PATH] [--draft] [--json]
+      Open a new pull request.
   pr-comment-add N --repo OWNER/REPO --body-file PATH [--json]
       Post a new issue-level comment on PR N.
   api METHOD PATH [-d BODY]
