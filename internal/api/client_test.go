@@ -151,3 +151,79 @@ func TestAPIErrorMessage(t *testing.T) {
 		t.Error("APIError should unwrap to ErrAPIError")
 	}
 }
+
+func TestClientDoesNotAttachAuthOutsideBaseURL(t *testing.T) {
+	// Defense in depth: a caller (e.g. the api subcommand) might pass a
+	// full URL pointing at an attacker-controlled host. The Authorization
+	// header must NOT be sent for those requests, even if the caller
+	// forgot to validate.
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(200)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := NewClientWithToken("ghs_secret_token")
+	c.BaseURL = "https://api.github.com" // pretend the real base
+
+	var out map[string]any
+	if err := c.Get(context.Background(), srv.URL+"/abs", &out); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if gotAuth != "" {
+		t.Errorf("Authorization header was sent to %s; want empty for SSRF safety. got: %q", srv.URL, gotAuth)
+	}
+}
+
+func TestClientAttachesAuthUnderBaseURL(t *testing.T) {
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(200)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := NewClientWithToken("ghs_real_token")
+	c.BaseURL = srv.URL // use the fake server as the base
+
+	var out map[string]any
+	if err := c.Get(context.Background(), "/rel", &out); err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if gotAuth != "token ghs_real_token" {
+		t.Errorf("Authorization header missing on in-base URL; got: %q", gotAuth)
+	}
+}
+
+func TestClientDeleteAcceptsBody(t *testing.T) {
+	var gotMethod, gotCT string
+	var gotBody []byte
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotCT = r.Header.Get("Content-Type")
+		gotBody, _ = io.ReadAll(r.Body)
+		w.WriteHeader(200)
+		w.Write([]byte(`{}`))
+	}))
+	defer srv.Close()
+
+	c := NewClientWithToken("x")
+	c.BaseURL = srv.URL
+	body := map[string]string{"reason": "stale"}
+	var out map[string]any
+	if err := c.Delete(context.Background(), "/x", body, &out); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if gotMethod != "DELETE" {
+		t.Errorf("method = %s, want DELETE", gotMethod)
+	}
+	if gotCT != "application/json" {
+		t.Errorf("content-type = %q, want application/json", gotCT)
+	}
+	if !strings.Contains(string(gotBody), `"reason":"stale"`) {
+		t.Errorf("body = %q, missing reason:stale", string(gotBody))
+	}
+}

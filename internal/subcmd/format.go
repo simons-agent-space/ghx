@@ -10,16 +10,21 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 )
 
 // flagSet creates a flag set that exits cleanly on parse error and
 // prints a one-line usage hint on misuse. The full usage text is
 // printed by main when an unknown subcommand is given.
+//
+// SetOutput is set to stderr (not io.Discard) so flag.Parse errors
+// are visible to the user; fs.Usage prints a compact one-line hint
+// to stderr rather than flag's verbose default.
 func flagSet(name, usageSuffix string) *flag.FlagSet {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
-	fs.SetOutput(io.Discard) // suppress default usage on parse error
+	fs.SetOutput(os.Stderr)
 	fs.Usage = func() {
-		fmt.Fprintf(io.Discard, "usage: ghx %s %s\n", name, usageSuffix)
+		fmt.Fprintf(os.Stderr, "usage: ghx %s %s\n", name, usageSuffix)
 	}
 	return fs
 }

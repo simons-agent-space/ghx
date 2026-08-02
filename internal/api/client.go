@@ -132,9 +132,9 @@ func (c *Client) Put(ctx context.Context, path string, body, out any) error {
 	return c.do(ctx, http.MethodPut, path, body, out)
 }
 
-// Delete performs a DELETE.
-func (c *Client) Delete(ctx context.Context, path string, out any) error {
-	return c.do(ctx, http.MethodDelete, path, nil, out)
+// Delete performs a DELETE. body may be nil.
+func (c *Client) Delete(ctx context.Context, path string, body, out any) error {
+	return c.do(ctx, http.MethodDelete, path, body, out)
 }
 
 // APIError is the typed error returned for non-2xx responses other
@@ -157,6 +157,15 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = c.BaseURL + path
 	}
+	// Defense in depth: only attach the Authorization header when the
+	// resolved URL is under BaseURL. The api subcommand validates paths
+	// before calling, but this prevents token exfiltration even if a
+	// caller (or future code) bypasses that validation.
+	attachAuth := !strings.HasPrefix(path, "http://") && !strings.HasPrefix(path, "https://")
+	if !attachAuth {
+		base := strings.TrimSuffix(c.BaseURL, "/")
+		attachAuth = strings.HasPrefix(url, base)
+	}
 	var bodyReader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -169,10 +178,12 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any) err
 	if err != nil {
 		return fmt.Errorf("new request: %w", err)
 	}
-	req.Header.Set("Authorization", "token "+c.Token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", UserAgent)
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	if attachAuth {
+		req.Header.Set("Authorization", "token "+c.Token)
+	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

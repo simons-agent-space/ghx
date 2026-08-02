@@ -51,7 +51,14 @@ func printPRList(w io.Writer, prs []map[string]any) {
 		if asBool(pr["draft"]) && state == "open" {
 			state = "open (draft)"
 		}
-		fmt.Fprintf(w, "#%-5d %-12s %s -> %s\n", n, state, asString(pr["head_ref"]), asString(pr["base_ref"]))
+		headRef, baseRef := "", ""
+		if head, ok := pr["head"].(map[string]any); ok {
+			headRef = asString(head["ref"])
+		}
+		if base, ok := pr["base"].(map[string]any); ok {
+			baseRef = asString(base["ref"])
+		}
+		fmt.Fprintf(w, "#%-5d %-12s %s -> %s\n", n, state, headRef, baseRef)
 		fmt.Fprintf(w, "  %s\n", asString(pr["title"]))
 		fmt.Fprintf(w, "  %s\n\n", asString(pr["html_url"]))
 	}

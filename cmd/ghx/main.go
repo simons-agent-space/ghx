@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/simons-agent-space/ghx/internal/api"
 	"github.com/simons-agent-space/ghx/internal/subcmd"
@@ -16,13 +18,17 @@ import (
 const version = "ghx 0.1.0"
 
 func main() {
-	if err := run(); err != nil {
+	// Ctrl-C / SIGTERM cancels the context so in-flight HTTP requests
+	// don't outlive the caller.
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+	if err := run(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, "ghx:", err)
 		os.Exit(exitCode(err))
 	}
 }
 
-func run() error {
+func run(ctx context.Context) error {
 	if len(os.Args) < 2 {
 		usage(os.Stderr)
 		return fmt.Errorf("no subcommand given")
@@ -30,13 +36,12 @@ func run() error {
 	cmd := os.Args[1]
 	args := os.Args[2:]
 
-	// version does not need auth.
+	// version does not need auth or context.
 	if cmd == "version" {
 		fmt.Println(version)
 		return nil
 	}
 
-	ctx := context.Background()
 	c, err := api.NewClient()
 	if err != nil {
 		return err
