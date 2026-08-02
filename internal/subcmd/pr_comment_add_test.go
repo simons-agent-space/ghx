@@ -103,7 +103,9 @@ func TestPRCommentAddMissingRepo(t *testing.T) {
 	c.BaseURL = srv.URL
 
 	bodyFile := filepath.Join(t.TempDir(), "body.md")
-	os.WriteFile(bodyFile, []byte("x"), 0o644)
+	if err := os.WriteFile(bodyFile, []byte("x"), 0o644); err != nil {
+		t.Fatalf("seed body: %v", err)
+	}
 
 	err := PRCommentAdd(context.Background(), c, []string{"--body-file", bodyFile, "1"})
 	if err == nil {
@@ -148,7 +150,9 @@ func TestPRCommentAddInvalidPRNumber(t *testing.T) {
 	c.BaseURL = srv.URL
 
 	bodyFile := filepath.Join(t.TempDir(), "body.md")
-	os.WriteFile(bodyFile, []byte("x"), 0o644)
+	if err := os.WriteFile(bodyFile, []byte("x"), 0o644); err != nil {
+		t.Fatalf("seed body: %v", err)
+	}
 
 	err := PRCommentAdd(context.Background(), c, []string{
 		"--repo", "owner/repo", "--body-file", bodyFile, "not-a-number",
@@ -163,6 +167,9 @@ func TestPRCommentAddInvalidPRNumber(t *testing.T) {
 
 // TestPRCommentAddJSONOutput verifies --json prints the raw API
 // response object (so callers can pipe it into jq or similar).
+// It captures stdout, decodes the JSON, and asserts on the
+// expected keys so we don't regress to "returns no error" without
+// actually checking what was printed.
 func TestPRCommentAddJSONOutput(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -174,12 +181,38 @@ func TestPRCommentAddJSONOutput(t *testing.T) {
 	c.BaseURL = srv.URL
 
 	bodyFile := filepath.Join(t.TempDir(), "body.md")
-	os.WriteFile(bodyFile, []byte("x"), 0o644)
+	if err := os.WriteFile(bodyFile, []byte("x"), 0o644); err != nil {
+		t.Fatalf("seed body: %v", err)
+	}
 
-	if err := PRCommentAdd(context.Background(), c, []string{
+	oldStdout := os.Stdout
+	rPipe, wPipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = wPipe
+
+	runErr := PRCommentAdd(context.Background(), c, []string{
 		"--repo", "owner/repo", "--body-file", bodyFile, "--json", "1",
-	}); err != nil {
-		t.Fatalf("PRCommentAdd: %v", err)
+	})
+
+	wPipe.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	io.Copy(&buf, rPipe)
+
+	if runErr != nil {
+		t.Fatalf("PRCommentAdd: %v", runErr)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &got); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\noutput: %s", err, buf.String())
+	}
+	if id, _ := got["id"].(float64); id != 42 {
+		t.Errorf("json id = %v, want 42; full output: %s", got["id"], buf.String())
+	}
+	if url, _ := got["html_url"].(string); url != "https://example/pr/1#issuecomment-42" {
+		t.Errorf("json html_url = %q, want %q", url, "https://example/pr/1#issuecomment-42")
 	}
 }
 
@@ -197,7 +230,9 @@ func TestPRCommentAddSurfacesAPIErrors(t *testing.T) {
 	c.BaseURL = srv.URL
 
 	bodyFile := filepath.Join(t.TempDir(), "body.md")
-	os.WriteFile(bodyFile, []byte("x"), 0o644)
+	if err := os.WriteFile(bodyFile, []byte("x"), 0o644); err != nil {
+		t.Fatalf("seed body: %v", err)
+	}
 
 	err := PRCommentAdd(context.Background(), c, []string{
 		"--repo", "owner/repo", "--body-file", bodyFile, "1",
@@ -225,7 +260,9 @@ func TestPRCommentAddPrintsCommentID(t *testing.T) {
 	c.BaseURL = srv.URL
 
 	bodyFile := filepath.Join(t.TempDir(), "body.md")
-	os.WriteFile(bodyFile, []byte("x"), 0o644)
+	if err := os.WriteFile(bodyFile, []byte("x"), 0o644); err != nil {
+		t.Fatalf("seed body: %v", err)
+	}
 
 	// Capture stdout while the subcommand runs.
 	oldStdout := os.Stdout
