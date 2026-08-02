@@ -75,6 +75,6 @@ func PRCreate(ctx context.Context, c *api.Client, args []string) error {
 	if *jsonOut {
 		return writeJSON(os.Stdout, out)
 	}
-	fmt.Fprintf(os.Stdout, "PR %s opened: %s\n", asString(out["number"]), asString(out["html_url"]))
+	fmt.Fprintf(os.Stdout, "PR %d opened: %s\n", asInt(out["number"]), asString(out["html_url"]))
 	return nil
 }

@@ -340,3 +340,48 @@ func TestPRCreateJSONOutput(t *testing.T) {
 		t.Errorf("json html_url = %q, want %q", url, "https://example/pr/99")
 	}
 }
+
+// TestPRCreatePrintsPRNumber verifies the human-readable success
+// message prints the created PR's numeric ID. The API returns
+// "number" as a JSON number (decoded as float64 in map[string]any);
+// the previous version used asString on a number field and
+// silently dropped the ID, producing "PR  opened: ..." with a
+// stray double space. This test catches that regression. Same
+// pattern as TestPRCommentAddPrintsCommentID.
+func TestPRCreatePrintsPRNumber(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"number": 4242, "html_url": "https://example/pr/4242"}`))
+	}))
+	defer srv.Close()
+
+	c := api.NewClientWithToken("test-token")
+	c.BaseURL = srv.URL
+
+	oldStdout := os.Stdout
+	rPipe, wPipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = wPipe
+
+	runErr := PRCreate(context.Background(), c, []string{
+		"--repo", "owner/repo", "--head", "feature/x", "--title", "feat",
+	})
+
+	wPipe.Close()
+	os.Stdout = oldStdout
+	var buf bytes.Buffer
+	io.Copy(&buf, rPipe)
+
+	if runErr != nil {
+		t.Fatalf("PRCreate: %v", runErr)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "PR 4242 opened: https://example/pr/4242") {
+		t.Errorf("expected success message with numeric ID 4242, got: %q", out)
+	}
+	if strings.Contains(out, "PR  opened:") {
+		t.Errorf("PR number was dropped (double space before 'opened:'): %q", out)
+	}
+}
