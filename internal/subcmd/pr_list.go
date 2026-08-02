@@ -12,10 +12,11 @@ import (
 
 // PRList lists pull requests in a repo.
 func PRList(ctx context.Context, c *api.Client, args []string) error {
-	fs := flagSet("pr-list", "--repo OWNER/REPO [--state open|closed|all] [--head REF] [--json]")
+	fs := flagSet("pr-list", "--repo OWNER/REPO [--state open|closed|all] [--head REF] [--author USER] [--json]")
 	repo := fs.String("repo", "", "owner/repo (required)")
 	state := fs.String("state", "open", "filter by state (open, closed, all)")
 	head := fs.String("head", "", "filter by head branch (owner:branch)")
+	author := fs.String("author", "", "filter by author username")
 	jsonOut := fs.Bool("json", false, "print raw JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -28,6 +29,9 @@ func PRList(ctx context.Context, c *api.Client, args []string) error {
 	q.Set("per_page", "30")
 	if *head != "" {
 		q.Set("head", *head)
+	}
+	if *author != "" {
+		q.Set("author", *author)
 	}
 	var arr []map[string]any
 	if err := c.Get(ctx, "/repos/"+*repo+"/pulls?"+q.Encode(), &arr); err != nil {
